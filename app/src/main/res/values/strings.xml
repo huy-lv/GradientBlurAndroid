@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">GradientBlurAndroid</string>
+    <string name="rotation">Rotation</string>
+    <string name="centerx">CenterX </string>
+    <string name="centery">CenterY </string>
+    <string name="distance1">Distance1 </string>
+    <string name="distance2">Distance2 </string>
+    <string name="radius">Radius </string>
+</resources>
