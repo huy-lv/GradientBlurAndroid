@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/activity_test"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.huylv.gradientblurandroid.TestActivity">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+        <ImageView
+            android:id="@+id/ivMain"
+            android:layout_width="360dp"
+            android:layout_height="400dp"
+            android:src="@mipmap/s1"/>
+        <Button
+            android:id="@+id/btStart"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="start"/>
+        <SeekBar
+            android:id="@+id/sbRotation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+        <SeekBar
+            android:id="@+id/sbCenterY"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+    </LinearLayout>
+</ScrollView>

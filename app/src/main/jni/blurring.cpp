@@ -3,9 +3,8 @@
 //
 
 #include <jni.h>
-#include <android/log.h>
 #include <opencv2/opencv.hpp>
-#include <opencv2/core/core.hpp>
+
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR  , "TAG jni",__VA_ARGS__ )
 
 using namespace std;
@@ -45,6 +44,25 @@ int shg_table[] = {
 		24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
 		24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
 		24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24 };
+char* itoa(int i, char b[]) {
+    char const digit[] = "0123456789";
+    char* p = b;
+    if (i<0) {
+        *p++ = '-';
+        i *= -1;
+    }
+    int shifter = i;
+    do { //Move to where representation ends
+        ++p;
+        shifter = shifter / 10;
+    } while (shifter);
+    *p = '\0';
+    do { //Move back, inserting digits as u go
+        *--p = digit[i % 10];
+        i = i / 10;
+    } while (i);
+    return b;
+}
 class BlurStack {
 public:
 	int r, g, b, a;
@@ -78,27 +96,62 @@ void arrayToMat(int* a, Mat &m) {
 }
 void mat8UC1ToArray(Mat m, int *a) {
 	int ii = 0;
+
 	for (int y = 0; y < m.rows; y++) {
+//        char s[1000] = "char1 s ";
+//        char b[] = "bbb";
+//        char c[] = " ";
 		for (int x = 0; x < m.cols; x++) {
 			int value = m.at<uchar>(y, x);
-			//if (value != 255 && value!=0) cout << " " << value;
+//			if (x<240 && x >200 && y <20){
+//                strcat(s,itoa(value,b));
+//                strcat(s,c);
+//            }
 			a[ii] = value;
 			a[ii + 1] = value;
 			a[ii + 2] = value;
 			a[ii + 3] = 255;
 			ii += 4;
 		}
+//        LOGE("mat8uc1 %s",s);
 	}
+
 }
 //int calculateRadius(int
 
 extern "C"{
+    void Java_com_huylv_gradientblurandroid_MainActivity_createCircleGradientMat(JNIEnv *env,jobject thiz,jlong matAddress,jint centerX,jint centerY,jint r1,jint r2){
+        Mat &gradientMat = *((Mat *) matAddress);
+        int width = gradientMat.cols;
+        int height = gradientMat.rows;
+        CV_Assert(gradientMat.type()==CV_8UC1 && width>0 && height>0 && centerX>=0 && centerY>=0 && r1>=0 && r2>=0);
+
+        gradientMat = saturate_cast<uchar>(255);
+        float stepRadius = (float)255 / r2;
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int a = centerX - x;
+                int b = centerY - y;
+                int distance = round(sqrt(a*a + b*b));
+
+                if (distance < r1) {
+                    gradientMat.at<uchar>(y, x) = saturate_cast<uchar>(0) ;
+                }else if(distance>r1+r2){
+                    continue;
+                }else{
+                    float v = (distance - r1)*stepRadius;
+                    gradientMat.at<uchar>(y, x) = saturate_cast<uchar>(v);
+                }
+            }
+        }
+    }
+
+
     void Java_com_huylv_gradientblurandroid_MainActivity_createLinearGradientMat(JNIEnv *env,jobject thiz,jlong matAddress,jint centerX,jint centerY,jint d1,jint d2,jint a){
         Mat &gradientMat = *((Mat *) matAddress);
         int width = gradientMat.cols;
         int height = gradientMat.rows;
         CV_Assert(gradientMat.type()==CV_8UC1 && width>0 && height>0 && centerX>=0 && centerY>=0 && d1>=0 && d2>=0);
-
 
         int w = 2 * sqrt(width*width + height*height);
         int h = w;// (d1 + d2) * 2;
@@ -133,7 +186,7 @@ extern "C"{
         finalMat.pop_back();
         warpAffine(m1, gradientMat, finalMat, gradientMat.size());
     }
-    void Java_com_huylv_gradientblurandroid_MainActivity_gradientBlur(JNIEnv *env,jobject thiz,jlong srcAddress,jlong dstAddress,jlong gradientAddress, jint radius){
+    void Java_com_huylv_gradientblurandroid_MainActivity_nativeGradientBlur(JNIEnv *env,jobject thiz,jlong srcAddress,jlong dstAddress,jlong gradientAddress, jint radius){
         Mat &srcMat = *((Mat *) srcAddress);
         Mat &dstMat = *((Mat *) dstAddress);
         Mat &radiusData = *((Mat *) gradientAddress);
@@ -147,12 +200,11 @@ extern "C"{
             divider += pow(increaseFactor,i+1);
         }
         float startRadius = radius/divider;
-        LOGE("Cxxxxxxxxxxxxxxxxx");
 
         int x, y, i, p, yp, yi, yw, r_sum, g_sum, b_sum,
-            r_out_sum, g_out_sum, b_out_sum,
-            r_in_sum, g_in_sum, b_in_sum,
-            pr, pg, pb, rbs;
+                r_out_sum, g_out_sum, b_out_sum,
+                r_in_sum, g_in_sum, b_in_sum,
+                pr, pg, pb, rbs;
         int wh = width * height;
         int wh4 = wh << 2;
         int *pixels = new int[wh4];
@@ -161,6 +213,7 @@ extern "C"{
         int* radiusPixels = new int[wh4];
         matToArray(srcMat, imagePixels);
         mat8UC1ToArray(radiusData, radiusPixels);
+
 
         for (int i = 0; i < wh4; i++)
         {
@@ -171,10 +224,10 @@ extern "C"{
         int steps = blurLevels;
         blurLevels -= 1;
 
+
         while (steps-- >= 0)
         {
-            cout << steps << "   " << endl;
-            int iradius = (radius + 0.5)/* | 0*/;
+            int iradius = (startRadius + 0.5)/* | 0*/;
             if (iradius == 0) continue;
             if (iradius > 256) iradius = 256;
             int div = iradius + iradius + 1;
@@ -367,7 +420,7 @@ extern "C"{
                 }
             }
 
-            radius *= increaseFactor;
+            startRadius *= increaseFactor;
             for (i = wh; --i > -1; )
             {
                 int idx = i << 2;
@@ -397,7 +450,7 @@ extern "C"{
 
 
     jint  Java_com_huylv_gradientblurandroid_MainActivity_getint(JNIEnv *env,jobject thiz){
-
-        return 2;
+        int a = 1+2;
+        return a;
     }
 }

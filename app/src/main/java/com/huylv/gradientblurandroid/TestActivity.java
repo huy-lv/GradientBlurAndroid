@@ -5,64 +5,32 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
-import android.view.View;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.SeekBar;
-import android.widget.TextView;
 
-import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import butterknife.OnClick;
 
 import static org.opencv.core.CvType.CV_8UC1;
 
-public class MainActivity extends AppCompatActivity implements SeekBar.OnSeekBarChangeListener {
+public class TestActivity extends AppCompatActivity implements SeekBar.OnSeekBarChangeListener {
+    Bitmap srcBm,dstBm,gradientBm;
+    int imagePixels[];
+    int width,height;
 
-    static {
-        System.loadLibrary("blurring");
-        OpenCVLoader.initDebug();
-    }
-
-    @BindView(R.id.tvRotation)
-    TextView tvRotation;
-    @BindView(R.id.tvCenterX)
-    TextView tvCenterX;
-    @BindView(R.id.tvCenterY)
-    TextView tvCenterY;
-    @BindView(R.id.tvRadius)
-    TextView tvRadius;
-    @BindView(R.id.tvDistance1)
-    TextView tvDistance1;
-    @BindView(R.id.tvDistance2)
-    TextView tvDistance2;
-    @BindView(R.id.ivGradientImage)
-    ImageView ivGradientImage;
-    @BindView(R.id.srcImage)
-    ImageView ivSrcImage;
+    @BindView(R.id.ivMain)
+    ImageView ivMain;
+    @BindView(R.id.btStart)
+    Button btStart;
     @BindView(R.id.sbRotation)
     SeekBar sbRotation;
-    @BindView(R.id.sbCenterX)
-    SeekBar sbCenterX;
     @BindView(R.id.sbCenterY)
     SeekBar sbCenterY;
-    @BindView(R.id.sbRadius)
-    SeekBar sbRadius;
-    @BindView(R.id.sbDistance1)
-    SeekBar sbDistance1;
-    @BindView(R.id.sbDistance2)
-    SeekBar sbDistance2;
-    boolean showingFinalImage = true,modeLinear = true;
-    Mat srcMat, dstMat, gradientMat;
-    Bitmap srcBm, dstBm, graBm;
-    int centerx, centery, distance1, distance2, angle, blurRadius;
-    int width,height,wh,wh4;
-    int imagePixels[],radiusPixels[], originPixels[];
     int mul_table[] = {
             512, 512, 456, 512, 328, 456, 335, 512, 405, 328, 271, 456, 388, 335, 292, 512,
             454, 405, 364, 328, 298, 271, 496, 456, 420, 388, 360, 335, 312, 292, 273, 512,
@@ -97,109 +65,61 @@ public class MainActivity extends AppCompatActivity implements SeekBar.OnSeekBar
             24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
             24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
             24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24 };
-
-    public static native int getint();
-
-    public static native void nativeGradientBlur(long srcAddress, long dstAddress, long gradientAddress, int radius);
-
-    public static native void createLinearGradientMat(long matAddress, int centerx, int centery, int distance1, int distance2, int angle);
-
-    public static native void createCircleGradientMat(long matAddress, int centerx, int centery, int ra1, int ra2);
+    private Mat graMat;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_test);
         ButterKnife.bind(this);
-        centerx = 0;
-        centery = 0;
-        distance1 = 100;
-        distance2 = 50;
-        angle = 135;
-        blurRadius = 40;
 
-        srcBm = BitmapFactory.decodeResource(getResources(), R.mipmap.s1);
+        srcBm = BitmapFactory.decodeResource(getResources(),R.mipmap.s1);
         width = srcBm.getWidth();
         height = srcBm.getHeight();
-        graBm = srcBm.copy(srcBm.getConfig(), true);
-        dstBm = srcBm.copy(srcBm.getConfig(), true);
+        dstBm = srcBm.copy(srcBm.getConfig(),true);
 
+        //start
+        int wh = width*height;
+        int wh4 = wh*4;
+
+        sbRotation.setOnSeekBarChangeListener(this);
+        sbCenterY.setOnSeekBarChangeListener(this);
+    }
+
+    @Override
+    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+        switch (seekBar.getId()){
+            case R.id.sbRotation:
+                gradientBlur(srcBm,dstBm,gradientBm,progress);
+                break;
+            case R.id.sbCenterY:
+                MainActivity.createLinearGradientMat(graMat.getNativeObjAddr(),0,progress,20,100,135);
+                Utils.matToBitmap(graMat,gradientBm);
+                gradientBlur(srcBm,dstBm,gradientBm,30);
+        }
+        ivMain.setImageBitmap(dstBm);
+    }
+
+    @Override
+    public void onStartTrackingTouch(SeekBar seekBar) {}
+
+    @Override
+    public void onStopTrackingTouch(SeekBar seekBar) {}
+
+    @OnClick(R.id.btStart)
+    void onclick(){
         //create gradient
-        gradientMat = new Mat(height, width, CV_8UC1);
-        createLinearGradientMat(gradientMat.getNativeObjAddr(), centerx, centery, distance1, distance2, angle);
-        Utils.matToBitmap(gradientMat, graBm);
-
-        srcMat = new Mat();
-        dstMat = new Mat();
-        Utils.bitmapToMat(srcBm, srcMat);
-        srcMat.copyTo(dstMat);
-        wh = width*height;
-        wh4 = wh*4;
-        imagePixels = new int[wh4];
-        radiusPixels = new int[wh4];
-        originPixels = new int[wh4];
-
-        bitmapToArray(srcBm, imagePixels);
-        bitmapToArray(graBm, radiusPixels);
-        System.arraycopy(imagePixels,0, originPixels,0,wh4);
+        gradientBm = srcBm.copy(srcBm.getConfig(),true);
+        graMat = new Mat(height,width,CV_8UC1);
+        MainActivity.createLinearGradientMat(graMat.getNativeObjAddr(),0,0,40,100,135);
+        Utils.matToBitmap(graMat,gradientBm);
 
         //blur
-        gradientBlur(blurRadius);
-        arrayToBitmap(imagePixels,dstBm);
-//        arrayToBitmap(originPixels,dstBm);
-        ivSrcImage.setImageBitmap(dstBm);
-
-
-        sbCenterX.setOnSeekBarChangeListener(this);
-        sbCenterY.setOnSeekBarChangeListener(this);
-        sbDistance1.setOnSeekBarChangeListener(this);
-        sbDistance2.setOnSeekBarChangeListener(this);
-        sbRadius.setOnSeekBarChangeListener(this);
-        sbRotation.setOnSeekBarChangeListener(this);
+        gradientBlur(srcBm,dstBm,gradientBm,30);
+        ivMain.setImageBitmap(dstBm);
     }
 
-    @Override
-    public void onStopTrackingTouch(SeekBar seekBar) {
-    }
-
-    void reDrawGradient() {
-        System.arraycopy(originPixels,0,imagePixels,0,wh4);
-        if(modeLinear) createLinearGradientMat(gradientMat.getNativeObjAddr(), centerx, centery, distance1, distance2, angle);
-        else createCircleGradientMat(gradientMat.getNativeObjAddr(),centerx,centery,distance1,distance2);
-        Utils.matToBitmap(gradientMat, graBm);
-        bitmapToArray(graBm, radiusPixels);
-        gradientBlur(blurRadius);
-        arrayToBitmap(imagePixels,dstBm);
-        ivSrcImage.setImageBitmap(dstBm);
-
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.action_compare:
-                if (showingFinalImage) {
-                    ivSrcImage.setVisibility(View.INVISIBLE);
-                    showingFinalImage = false;
-                    item.setTitle("Show");
-                    Utils.matToBitmap(gradientMat, graBm);
-                    ivGradientImage.setImageBitmap(graBm);
-                } else {
-                    ivSrcImage.setVisibility(View.VISIBLE);
-                    showingFinalImage = true;
-                    item.setTitle("Hide");
-                }
-                break;
-            case R.id.action_mode:
-                modeLinear = !modeLinear;
-                item.setTitle(modeLinear?"Linear":"Circle");
-                reDrawGradient();
-                break;
-        }
-        return true;
-    }
-
-    void gradientBlur(int radius){
+    void gradientBlur(Bitmap srcMat, Bitmap dstMat,Bitmap radiusData,int radius){
         int blurLevels = 2;
         float increaseFactor = 1.5f;
         float divider = increaseFactor;
@@ -208,12 +128,18 @@ public class MainActivity extends AppCompatActivity implements SeekBar.OnSeekBar
         }
         float startRadius = radius/divider;
 
-        int pixels[] = new int[wh4];
         int x, y, i, p, yp, yi, yw, r_sum, g_sum, b_sum,
                 r_out_sum, g_out_sum, b_out_sum,
                 r_in_sum, g_in_sum, b_in_sum,
                 pr, pg, pb, rbs;
+        int wh = width * height;
+        int wh4 = wh << 2;
+        int pixels[] = new int[wh4];
 
+        int imagePixels[] = new int[wh4];
+        int radiusPixels[] = new int[wh4];
+        bitmapToArray(srcMat, imagePixels);
+        bitmapToArray(radiusData, radiusPixels);
 
         System.arraycopy(imagePixels,0,pixels,0,wh4);
 
@@ -224,10 +150,11 @@ public class MainActivity extends AppCompatActivity implements SeekBar.OnSeekBar
 
         while (steps-- >= 0)
         {
-            int iradius = (int) (startRadius + 0.5);
+            int iradius = (int) (radius + 0.5);
             if (iradius == 0) continue;
             if (iradius > 256) iradius = 256;
             int div = iradius + iradius + 1;
+            int w4 = width << 2;
             int widthMinus1 = width - 1;
             int heightMinus1 = height - 1;
             int radiusPlus1 = iradius + 1;
@@ -416,7 +343,7 @@ public class MainActivity extends AppCompatActivity implements SeekBar.OnSeekBar
                 }
             }
 
-            startRadius *= increaseFactor;
+            radius *= increaseFactor;
             for (i = wh; --i > -1; )
             {
                 int idx = i << 2;
@@ -430,39 +357,18 @@ public class MainActivity extends AppCompatActivity implements SeekBar.OnSeekBar
                     imagePixels[idx] = (int)(imagePixels[idx] * iblend + pixels[idx] * blend) >> 8;
                     imagePixels[idx + 1] = (int)(imagePixels[idx + 1] * iblend + pixels[idx + 1] * blend) >> 8;
                     imagePixels[idx + 2] = (int)(imagePixels[idx + 2] * iblend + pixels[idx + 2] * blend) >> 8;
-//                    originPixels[idx] = (int)(imagePixels[idx] * iblend + pixels[idx] * blend) >> 8;
-//                    originPixels[idx + 1] = (int)(imagePixels[idx + 1] * iblend + pixels[idx + 1] * blend) >> 8;
-//                    originPixels[idx + 2] = (int)(imagePixels[idx + 2] * iblend + pixels[idx + 2] * blend) >> 8;
                 }
                 else if (index == currentIndex + 1)
                 {
                     imagePixels[idx] = pixels[idx];
                     imagePixels[idx + 1] = pixels[idx + 1];
                     imagePixels[idx + 2] = pixels[idx + 2];
-//                    originPixels[idx] = pixels[idx];
-//                    originPixels[idx + 1] = pixels[idx + 1];
-//                    originPixels[idx + 2] = pixels[idx + 2];
                 }
             }
             currentIndex++;
         }
-        ////////////////////////////////////////////////////////////////////////////////////////
-
-
-    }
-
-    void bitmapToArray(Bitmap b,int[] a){
-        int ii = 0;
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int color = b.getPixel(x,y);
-                a[ii] = Color.red(color);
-                a[ii + 1] = Color.green(color);
-                a[ii + 2] = Color.blue(color);
-                a[ii+3]= 255;
-                ii += 4;
-            }
-        }
+        ////////////////////
+        arrayToBitmap(imagePixels, dstMat);
     }
 
     private void arrayToBitmap(int[] imagePixels, Bitmap dstMat) {
@@ -475,55 +381,17 @@ public class MainActivity extends AppCompatActivity implements SeekBar.OnSeekBar
         }
     }
 
-    @Override
-    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-        switch (seekBar.getId()) {
-            case R.id.sbRotation:
-                tvRotation.setText(getString(R.string.rotation) + progress);
-                angle = sbRotation.getProgress();
-                if(modeLinear)  reDrawGradient();
-                break;
-            case R.id.sbCenterX:
-                tvCenterX.setText(getString(R.string.centerx) + progress);
-                centerx = sbCenterX.getProgress();
-                reDrawGradient();
-                break;
-            case R.id.sbCenterY:
-                tvCenterY.setText(getString(R.string.centery) + progress);
-                centery = sbCenterY.getProgress();
-                reDrawGradient();
-                break;
-            case R.id.sbDistance1:
-                tvDistance1.setText(getString(R.string.distance1) + progress);
-                distance1 = sbDistance1.getProgress();
-                reDrawGradient();
-                break;
-            case R.id.sbDistance2:
-                tvDistance2.setText(getString(R.string.distance2) + progress);
-                distance2 = sbDistance2.getProgress();
-                reDrawGradient();
-                break;
-            case R.id.sbRadius:
-                tvRadius.setText(getString(R.string.radius) + progress);
-                blurRadius = sbRadius.getProgress();
-                System.arraycopy(originPixels,0,imagePixels,0,wh4);
-                gradientBlur(blurRadius);
-                arrayToBitmap(imagePixels,dstBm);
-                ivSrcImage.setImageBitmap(dstBm);
-                break;
+    void bitmapToArray(Bitmap b,int[] a){
+        int ii = 0;
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int color = b.getPixel(x,y);
+                a[ii] = Color.red(color);
+                a[ii + 1] = Color.green(color);
+                a[ii + 2] = Color.blue(color);
+                ii += 4;
+            }
         }
-    }
-
-    @Override
-    public void onStartTrackingTouch(SeekBar seekBar) {
-
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        MenuInflater inflater = getMenuInflater();
-        inflater.inflate(R.menu.main, menu);
-        return true;
     }
 
     class BlurStack {
@@ -534,5 +402,4 @@ public class MainActivity extends AppCompatActivity implements SeekBar.OnSeekBar
             next = null;
         }
     }
-
 }
